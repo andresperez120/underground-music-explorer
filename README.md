@@ -106,8 +106,7 @@ This script is the heart of the recommendation engine:
 | artist_name  | Name of the artist                                               |
 | tag          | Primary genre tag (e.g., 'techno', 'house')                      |
 | listeners    | Total number of unique Last.fm listeners for the artist          |
-| mbid         | MusicBrainz Identifier (unique artist ID, may be blank)          |
-| url          | Link to the artist's Last.fm page                                |
+
 
 ---
 
