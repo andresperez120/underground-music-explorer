@@ -6,10 +6,6 @@ music-env/
 __pycache__/
 *.pyc
 
-# CSV data files
-*.csv
-*.csv.gz
-
 # macOS specific
 .DS_Store
 
