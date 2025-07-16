@@ -11,3 +11,6 @@ __pycache__/
 
 # Cache
 .cache
+
+# Misc folder
+misc/
