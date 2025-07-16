@@ -224,6 +224,10 @@ if st.button("✨ Find My Playlist ✨"):
             for i, rec in enumerate(recommendations):
                 cols[i % num_columns].write(f"{i+1}. {rec}")
             
+            # Add a small note if the playlist is shorter than requested
+            if num_recs < playlist_size:
+                st.info(f"💡 We found {num_recs} great tracks! The playlist can be shorter than requested to ensure quality and avoid duplicates. Try adjusting the 'adventurous' slider for different results!")
+
             # Add a divider
             st.divider()
 
