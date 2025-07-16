@@ -111,9 +111,8 @@ This script is the heart of the recommendation engine:
 ---
 
 ## 🚦 Project Phases (Actual Workflow)
-1. **Data Collection & EDA**
-    - Gathered artist/tag/listener data from Last.fm.
-    - Performed EDA to define "underground" and explore genre/listener distributions.
+1. **Data Collection**
+    - Gathered artist/tag/listener data from Last.fm using `get_artist_by_tag.py`.
   
 2. **EDA**
     - Understand the data we are working with and what it  means for an artist or track to be considered "underground".
@@ -127,9 +126,9 @@ This script is the heart of the recommendation engine:
 ---
 
 ## 🤝 Collaboration & Future Work
+- **Explore song-level features:** I would love to learn more about the BPM (tempo) and other musical features of individual songs—especially those not available from public APIs. If you have ideas, data sources, or want to collaborate on extracting or inferring these features, please reach out!
 - Add user authentication for personalized scrobble-based recommendations.
-- Integrate other APIs (Spotify, YouTube) for richer metadata and audio previews.
-- Add machine learning for advanced track clustering and similarity scoring.
-- Cache API results to speed up recommendations for frequent queries.
+
+
 
 
