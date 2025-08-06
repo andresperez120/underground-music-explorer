@@ -54,8 +54,18 @@ def create_popularity_chart(recommendations, artist_df):
     # Merge with the main artist_df to get listener counts using normalized names
     chart_df = pd.merge(rec_df, artist_df_normalized, on='artist_name_norm', how='left')
     
-    # Use the original artist names from recommendations for display
-    chart_df = chart_df.drop_duplicates(subset=['artist_name_x'])
+    # Handle duplicates by preferring exact matches over partial matches
+    # Sort by listeners count (descending) to prioritize solo artists over collaborations
+    chart_df = chart_df.sort_values('listeners', ascending=False, na_last=True)
+    
+    # For debugging: print what we found
+    for _, row in chart_df.iterrows():
+        rec_name = row['artist_name_x'] 
+        db_name = row.get('artist_name_y', 'NO_MATCH')
+        listeners = row.get('listeners', 'NO_DATA')
+        print(f"🔍 Match: '{rec_name}' -> '{db_name}' ({listeners} listeners)")
+    
+    chart_df = chart_df.drop_duplicates(subset=['artist_name_x'], keep='first')
     chart_df = chart_df.rename(columns={'artist_name_x': 'artist_name'})
     
     # Filter out rows where no match was found (listeners is NaN)
