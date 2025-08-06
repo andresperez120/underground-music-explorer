@@ -169,6 +169,7 @@ artist_df = cached_load_artist_data()
 # App layout
 st.title("🎵 Underground House Music Discovery Engine")
 st.write("Welcome! Enter an artist you like, and we'll find some hidden gems for you.")
+st.write("With ❤️ from Andres")
 
 # Use columns for a cleaner layout
 col1, col2 = st.columns([2, 1])
