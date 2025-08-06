@@ -26,6 +26,7 @@ import pandas as pd
 import requests
 import time
 import os
+import re
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -144,11 +145,51 @@ def find_underground_artists(seed_artist, artist_df, percentile_threshold=0.75, 
     print(f"   > Finding underground artists in the same genre as {seed_artist}...")
     
     # 1. Find the tags for the seed artist from our dataframe (case-insensitive search)
-    seed_artist_tags = artist_df[artist_df['artist_name'].str.lower() == seed_artist.lower()]['tag'].unique()
+    # Try exact match first
+    exact_matches = artist_df[artist_df['artist_name'].str.lower() == seed_artist.lower()]
     
-    if len(seed_artist_tags) == 0:
-        print(f"   > ERROR: Seed artist '{seed_artist}' not found in our data file.")
+    # Always also search for collaborations to get broader genre coverage
+    patterns = [
+        f'^{re.escape(seed_artist)}\\s*&',  # "Diplo & GTA"
+        f'&\\s*{re.escape(seed_artist)}',   # "GTA & Diplo"  
+        f'^{re.escape(seed_artist)}\\s+and\\s',  # "Diplo and GTA"
+        f'\\s+and\\s+{re.escape(seed_artist)}',  # "GTA and Diplo"
+        f'^{re.escape(seed_artist)}\\s+(feat|ft)\\.?\\s',  # "Diplo feat GTA"
+        f'(feat|ft)\\.?\\s+{re.escape(seed_artist)}',      # "GTA feat Diplo"
+    ]
+    
+    combined_pattern = '|'.join(patterns)
+    collaboration_matches = artist_df[
+        artist_df['artist_name'].str.contains(combined_pattern, case=False, na=False, regex=True)
+    ]
+    
+    # Combine both exact and collaboration matches
+    import pandas as pd
+    all_matches = pd.concat([exact_matches, collaboration_matches]).drop_duplicates()
+    
+    if all_matches.empty:
+        print(f"   > ERROR: Seed artist '{seed_artist}' not found in our data file (solo or collaborations).")
         return []
+    
+    # Get all unique genres from both solo and collaboration work
+    seed_artist_tags = all_matches['tag'].unique()
+    
+    # Report what we found
+    exact_count = len(exact_matches)
+    collab_count = len(collaboration_matches)
+    
+    if exact_count > 0 and collab_count > 0:
+        print(f"   > Found {exact_count} solo entries and {collab_count} collaborations")
+        collab_names = collaboration_matches['artist_name'].head(3).tolist()
+        print(f"   > Sample collaborations: {', '.join(collab_names)}")
+    elif exact_count > 0:
+        print(f"   > Found {exact_count} solo entries (no collaborations)")
+    else:
+        print(f"   > No solo entries, found {collab_count} collaborations")
+        collab_names = collaboration_matches['artist_name'].head(3).tolist()
+        print(f"   > Collaborations: {', '.join(collab_names)}")
+    
+    print(f"   > All genres found: {', '.join(seed_artist_tags)}")
         
     # For simplicity, we'll use the first tag as the primary genre
     primary_genre = seed_artist_tags[0]
