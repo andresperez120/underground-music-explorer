@@ -61,6 +61,20 @@ def create_popularity_chart(recommendations, artist_df):
     # Filter out rows where no match was found (listeners is NaN)
     chart_df = chart_df.dropna(subset=['listeners'])
     
+    # For missing artists, show them with a placeholder value so users know they exist
+    missing_artists = rec_df[~rec_df['artist_name_norm'].isin(artist_df_normalized['artist_name_norm'])]
+    has_missing_artists = not missing_artists.empty
+    
+    if has_missing_artists:
+        print(f"Note: {len(missing_artists)} artists not found in database: {', '.join(missing_artists['artist_name'].head(3))}")
+        # Add missing artists with placeholder data for visualization
+        for _, row in missing_artists.iterrows():
+            chart_df = pd.concat([chart_df, pd.DataFrame({
+                'artist_name': [row['artist_name']],
+                'listeners': [0],  # Placeholder - will show as "Unknown" 
+                'tag': ['unknown']
+            })], ignore_index=True)
+    
     # Check if we have any data to plot
     if chart_df.empty:
         # Create a simple message plot if no data matches
@@ -88,13 +102,17 @@ def create_popularity_chart(recommendations, artist_df):
     barplot = sns.barplot(data=chart_df, x='listeners', y='artist_name', ax=ax, color='#c0392b') # A nice red color
     
     # Add the listener count labels to the end of each bar
-    ax.bar_label(
-        barplot.containers[0], # type: ignore
-        fmt='{:,.0f}',  # Format as an integer with commas
-        padding=5,
-        fontsize=10,
-        color='white'
-    )
+    labels = []
+    for listeners in chart_df['listeners']:
+        if listeners == 0:
+            labels.append('Unknown')
+        else:
+            labels.append(f'{listeners:,.0f}')
+    
+    # Apply custom labels
+    for i, (bar, label) in enumerate(zip(barplot.containers[0], labels)):
+        ax.text(bar.get_width() + (ax.get_xlim()[1] * 0.01), bar.get_y() + bar.get_height()/2, 
+                label, ha='left', va='center', fontsize=10, color='white')
 
     # Customize titles and labels for the dark theme
     ax.set_title('Popularity Spectrum of Your Recommended Artists', color='white')
@@ -108,7 +126,7 @@ def create_popularity_chart(recommendations, artist_df):
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     
-    return fig
+    return fig, has_missing_artists
 
 def create_recommendation_galaxy(recommendations, artist_df):
     """
@@ -132,9 +150,27 @@ def create_recommendation_galaxy(recommendations, artist_df):
                 'genre': artist_info.iloc[0]['tag']
             })
     
+    # Add placeholder entries for missing artists
+    missing_count = len(recommendations) - len(plot_data)
+    has_missing_in_galaxy = missing_count > 0
+    
+    if has_missing_in_galaxy:
+        print(f"Note: {missing_count} artists not found in database for galaxy visualization")
+        # Add placeholder entries so users see all their recommended artists
+        for rec in recommendations:
+            artist_name, track_name = rec.split(' - ', 1)
+            # Check if this artist is already in plot_data
+            if not any(entry['artist_name'] == artist_name for entry in plot_data):
+                plot_data.append({
+                    'artist_track': rec,
+                    'artist_name': artist_name,
+                    'Artist Listeners': 1,  # Small placeholder value
+                    'genre': 'unknown'
+                })
+    
     if not plot_data:
         st.info("Could not gather enough data to create the recommendation galaxy.")
-        return None
+        return None, False
 
     plot_df = pd.DataFrame(plot_data)
 
@@ -198,7 +234,7 @@ def create_recommendation_galaxy(recommendations, artist_df):
         )]
     )
 
-    return fig
+    return fig, has_missing_in_galaxy
 
 
 def prepare_clustering_data(artist_df):
@@ -482,14 +518,23 @@ with tab1:
 
                 with col1_chart:
                     st.subheader("Popularity Spectrum:")
-                    fig = create_popularity_chart(recommendations, artist_df)
+                    fig, has_missing = create_popularity_chart(recommendations, artist_df)
                     st.pyplot(fig)
+                    
+                    # Show explanation if there are unknown artists
+                    if has_missing:
+                        st.caption("💡 **Note:** Artists labeled 'Unknown' are not in our database. These are typically mainstream artists discovered through Last.fm's similar artist recommendations.")
                 
                 with col2_galaxy:
                     st.subheader("Recommendation Galaxy")
-                    galaxy_fig = create_recommendation_galaxy(recommendations, artist_df)
-                    if galaxy_fig:
+                    galaxy_result = create_recommendation_galaxy(recommendations, artist_df)
+                    if galaxy_result[0]:  # If we got a figure
+                        galaxy_fig, has_missing_galaxy = galaxy_result
                         st.plotly_chart(galaxy_fig, use_container_width=True)
+                        
+                        # Show explanation if there are unknown artists in galaxy
+                        if has_missing_galaxy:
+                            st.caption("💡 **Note:** Small dots represent artists not in our database - these are typically mainstream artists from Last.fm's recommendations.")
                     else:
                         st.info("Not enough genre data to create a galaxy map for these artists.")
 
@@ -517,6 +562,18 @@ with tab2:
             )
             
             st.info("**Features used:**\n- Artist popularity (log scale)\n- Genre mainstream-ness")
+            
+            with st.expander("💡 Why Log Scale?"):
+                st.write("""
+                **Log transformation** is essential for music popularity data because:
+                
+                • **Extreme skewness**: Most artists have <10k listeners, while top artists have millions
+                • **Better clustering**: Log scale reduces the dominance of mega-popular artists  
+                • **Meaningful patterns**: Captures the difference between 1k→10k listeners (underground→niche) as significantly as 100k→1M (popular→mainstream)
+                • **Algorithm efficiency**: Prevents clustering from being driven purely by raw popularity numbers
+                
+                Without log scaling, all artists would cluster based only on "mega-popular vs everyone else"!
+                """)
         
         # Perform clustering
         with st.spinner("Running K-means clustering..."):
