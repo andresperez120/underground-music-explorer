@@ -504,7 +504,7 @@ with tab2:
                     st.write(f"**Example Artists:** {', '.join(insight['example_artists'])}")
         
         # Create and display the visualization
-        st.subheader("🎨 Interactive Cluster Visualization")
+        st.subheader("Interactive Cluster Visualization")
         cluster_fig = create_cluster_visualization(df_clustered)
         st.plotly_chart(cluster_fig, use_container_width=True)
         
