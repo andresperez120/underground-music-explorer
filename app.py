@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
 import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
 
 
 # Page configuration
@@ -13,6 +16,18 @@ st.set_page_config(
     page_icon="🎵",
     layout="wide"
 )
+
+# Add custom CSS for better styling
+st.markdown("""
+<style>
+    .metric-card {
+        background-color: #f0f2f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border-left: 4px solid #ff6b6b;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 
 # Charting functions
@@ -157,6 +172,144 @@ def create_recommendation_galaxy(recommendations, artist_df):
     return fig
 
 
+def prepare_clustering_data(artist_df):
+    """
+    Prepare artist data for clustering by creating features and handling missing values.
+    """
+    # Create a copy to avoid modifying the original
+    df = artist_df.copy()
+    
+    # Handle missing values
+    df = df.dropna(subset=['listeners', 'tag'])
+    
+    # Log transform listener counts to handle skewness
+    df['log_listeners'] = np.log1p(df['listeners'])
+    
+    # Create genre diversity feature (how many different tags an artist has)
+    # For now, we'll use a simple approach since each row has one tag
+    df['genre_popularity'] = df.groupby('tag')['listeners'].transform('mean')
+    df['log_genre_popularity'] = np.log1p(df['genre_popularity'])
+    
+    # Create features for clustering
+    features = ['log_listeners', 'log_genre_popularity']
+    
+    return df, features
+
+
+def perform_clustering(df, features, n_clusters=5):
+    """
+    Perform K-means clustering on artist data.
+    """
+    # Prepare feature matrix
+    X = df[features].values
+    
+    # Standardize features
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    
+    # Perform clustering
+    kmeans = KMeans(n_clusters=n_clusters, random_state=42, n_init=10)
+    cluster_labels = kmeans.fit_predict(X_scaled)
+    
+    # Add cluster labels to dataframe
+    df_clustered = df.copy()
+    df_clustered['cluster'] = cluster_labels
+    
+    return df_clustered, kmeans, scaler
+
+
+def create_cluster_visualization(df_clustered):
+    """
+    Create an interactive cluster visualization.
+    """
+    # Create cluster descriptions
+    cluster_descriptions = {
+        0: "Mainstream Giants",
+        1: "Popular Acts", 
+        2: "Mid-tier Artists",
+        3: "Underground Favorites",
+        4: "Deep Underground"
+    }
+    
+    # Sort clusters by average listener count for consistent naming
+    cluster_means = df_clustered.groupby('cluster')['log_listeners'].mean().sort_values(ascending=False)
+    cluster_mapping = {}
+    for i, cluster_id in enumerate(cluster_means.index):
+        cluster_mapping[cluster_id] = i
+        
+    df_clustered['cluster_named'] = df_clustered['cluster'].map(cluster_mapping)
+    df_clustered['cluster_label'] = df_clustered['cluster_named'].map(cluster_descriptions)
+    
+    # Create the interactive plot
+    fig = px.scatter(
+        df_clustered.sample(min(2000, len(df_clustered))),  # Sample for performance
+        x='log_listeners',
+        y='log_genre_popularity',
+        color='cluster_label',
+        hover_name='artist_name',
+        hover_data={
+            'tag': True,
+            'listeners': ':,',
+            'log_listeners': False,
+            'log_genre_popularity': False,
+            'cluster_label': False
+        },
+        title="Artist Clusters: Popularity vs Genre Mainstream-ness",
+        labels={
+            'log_listeners': 'Artist Popularity (log scale)',
+            'log_genre_popularity': 'Genre Popularity (log scale)',
+            'cluster_label': 'Cluster'
+        },
+        template='plotly_dark',
+        color_discrete_sequence=px.colors.qualitative.Set2
+    )
+    
+    fig.update_layout(
+        height=600,
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.99,
+            xanchor="left",
+            x=0.01
+        )
+    )
+    
+    return fig
+
+
+def analyze_clusters(df_clustered):
+    """
+    Generate insights about the clusters.
+    """
+    insights = []
+    
+    for cluster_id in sorted(df_clustered['cluster_named'].unique()):
+        cluster_data = df_clustered[df_clustered['cluster_named'] == cluster_id]
+        
+        avg_listeners = cluster_data['listeners'].mean()
+        top_genres = cluster_data['tag'].value_counts().head(3)
+        artist_count = len(cluster_data)
+        
+        cluster_descriptions = {
+            0: "Mainstream Giants",
+            1: "Popular Acts", 
+            2: "Mid-tier Artists",
+            3: "Underground Favorites",
+            4: "Deep Underground"
+        }
+        
+        insights.append({
+            'cluster': cluster_descriptions[cluster_id],
+            'avg_listeners': f"{avg_listeners:,.0f}",
+            'artist_count': artist_count,
+            'top_genres': list(top_genres.index),
+            'example_artists': list(cluster_data['artist_name'].sample(min(3, len(cluster_data))))
+        })
+    
+    return insights
+
+
 # Data loading
 # Use Streamlit's cache to load the data only once
 @st.cache_data
@@ -171,82 +324,141 @@ st.title("🎵 Underground House Music Discovery Engine")
 st.write("Welcome! Enter an artist you like, and we'll find some hidden gems for you.")
 st.write("With ❤️ from Andres")
 
-# Use columns for a cleaner layout
-col1, col2 = st.columns([2, 1])
+# Create tabs
+tab1, tab2 = st.tabs(["🎯 Get Recommendations", "🔍 Explore Artist Clusters"])
 
-with col1:
-    seed_artist = st.text_input(
-        label="Enter an artist name:",
-        placeholder="e.g., Cristi Cons, Ricardo Villalobos"
-    )
+with tab1:
+    # Use columns for a cleaner layout
+    col1, col2 = st.columns([2, 1])
 
-with col2:
-    discovery_weight = st.slider(
-        label="How adventurous do you want to be?",
-        min_value=0.0,
-        max_value=1.0,
-        value=0.5,
-        step=0.1,
-        help="0.0 = More mainstream artists. 1.0 = Deeper underground cuts."
-    )
-    
-    playlist_size = st.slider(
-        label="Number of songs in my playlist:",
-        min_value=5,
-        max_value=30,
-        value=20, # Default value
-        step=1
-    )
+    with col1:
+        seed_artist = st.text_input(
+            label="Enter an artist name:",
+            placeholder="e.g., Cristi Cons, Ricardo Villalobos"
+        )
 
-if st.button("✨ Find My Playlist ✨"):
-    if not seed_artist:
-        st.warning("Please enter an artist name.")
-    elif artist_df is None:
-        st.error("Artist data could not be loaded. Please check the logs.")
-    else:
-        with st.spinner("Calling the recommendation engine... this might take a moment..."):
-            results = get_recommendations(
-                seed_artist,
-                artist_df,
-                discovery_weight=discovery_weight,
-                playlist_size=playlist_size
-            )
-
-        st.success("Playlist generated!")
+    with col2:
+        discovery_weight = st.slider(
+            label="How adventurous do you want to be?",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.5,
+            step=0.1,
+            help="0.0 = More mainstream artists. 1.0 = Deeper underground cuts."
+        )
         
-        # Display the results
-        recommendations = results["playlist"]
-        num_recs = len(recommendations)
-        if num_recs > 0:
-            st.subheader("Your Custom Playlist:")
-            # Use columns for the playlist to save vertical space
-            num_columns = 2
-            cols = st.columns(num_columns)
-            for i, rec in enumerate(recommendations):
-                cols[i % num_columns].write(f"{i+1}. {rec}")
-            
-            # Add a small note if the playlist is shorter than requested
-            if num_recs < playlist_size:
-                st.info(f"💡 We found {num_recs} great tracks! The playlist can be shorter than requested to ensure quality and avoid duplicates. Try adjusting the 'adventurous' slider for different results!")
+        playlist_size = st.slider(
+            label="Number of songs in my playlist:",
+            min_value=5,
+            max_value=30,
+            value=20, # Default value
+            step=1
+        )
 
-            # Add a divider
-            st.divider()
-
-            # Create two columns for playlist and chart
-            col1_chart, col2_galaxy = st.columns(2)
-
-            with col1_chart:
-                st.subheader("Popularity Spectrum:")
-                fig = create_popularity_chart(recommendations, artist_df)
-                st.pyplot(fig)
-            
-            with col2_galaxy:
-                st.subheader("Recommendation Galaxy")
-                galaxy_fig = create_recommendation_galaxy(recommendations, artist_df)
-                if galaxy_fig:
-                    st.plotly_chart(galaxy_fig, use_container_width=True)
-                else:
-                    st.info("Not enough genre data to create a galaxy map for these artists.")
-
+    if st.button("✨ Find My Playlist ✨"):
+        if not seed_artist:
+            st.warning("Please enter an artist name.")
+        elif artist_df is None:
+            st.error("Artist data could not be loaded. Please check the logs.")
         else:
-            st.info("Could not generate recommendations. Try a different artist.") 
+            with st.spinner("Calling the recommendation engine... this might take a moment..."):
+                results = get_recommendations(
+                    seed_artist,
+                    artist_df,
+                    discovery_weight=discovery_weight,
+                    playlist_size=playlist_size
+                )
+
+            st.success("Playlist generated!")
+            
+            # Display the results
+            recommendations = results["playlist"]
+            num_recs = len(recommendations)
+            if num_recs > 0:
+                st.subheader("Your Custom Playlist:")
+                # Use columns for the playlist to save vertical space
+                num_columns = 2
+                cols = st.columns(num_columns)
+                for i, rec in enumerate(recommendations):
+                    cols[i % num_columns].write(f"{i+1}. {rec}")
+                
+                # Add a small note if the playlist is shorter than requested
+                if num_recs < playlist_size:
+                    st.info(f"💡 We found {num_recs} great tracks! The playlist can be shorter than requested to ensure quality and avoid duplicates. Try adjusting the 'adventurous' slider for different results!")
+
+                # Add a divider
+                st.divider()
+
+                # Create two columns for playlist and chart
+                col1_chart, col2_galaxy = st.columns(2)
+
+                with col1_chart:
+                    st.subheader("Popularity Spectrum:")
+                    fig = create_popularity_chart(recommendations, artist_df)
+                    st.pyplot(fig)
+                
+                with col2_galaxy:
+                    st.subheader("Recommendation Galaxy")
+                    galaxy_fig = create_recommendation_galaxy(recommendations, artist_df)
+                    if galaxy_fig:
+                        st.plotly_chart(galaxy_fig, use_container_width=True)
+                    else:
+                        st.info("Not enough genre data to create a galaxy map for these artists.")
+
+            else:
+                st.info("Could not generate recommendations. Try a different artist.")
+
+with tab2:
+    st.header("🔍 Explore Artist Clusters")
+    st.write("Discover how artists group together based on their popularity and genre characteristics using machine learning clustering.")
+    
+    if artist_df is not None:
+        # Prepare clustering data
+        with st.spinner("Preparing artist data for clustering..."):
+            df_clustering, features = prepare_clustering_data(artist_df)
+            
+        # User controls for clustering
+        col1, col2 = st.columns([1, 3])
+        
+        with col1:
+            n_clusters = st.selectbox(
+                "Number of clusters:",
+                options=[3, 4, 5, 6, 7],
+                index=2,  # Default to 5
+                help="Choose how many artist groups you want to see"
+            )
+            
+            st.info("**Features used:**\n- Artist popularity (log scale)\n- Genre mainstream-ness")
+        
+        # Perform clustering
+        with st.spinner("Running K-means clustering..."):
+            df_clustered, kmeans, scaler = perform_clustering(df_clustering, features, n_clusters)
+            
+        # Display cluster insights
+        with col2:
+            insights = analyze_clusters(df_clustered)
+            
+            st.subheader("📊 Cluster Summary")
+            for insight in insights:
+                with st.expander(f"🎯 {insight['cluster']} ({insight['artist_count']} artists)"):
+                    st.write(f"**Average Listeners:** {insight['avg_listeners']}")
+                    st.write(f"**Top Genres:** {', '.join(insight['top_genres'][:3])}")
+                    st.write(f"**Example Artists:** {', '.join(insight['example_artists'])}")
+        
+        # Create and display the visualization
+        st.subheader("🎨 Interactive Cluster Visualization")
+        cluster_fig = create_cluster_visualization(df_clustered)
+        st.plotly_chart(cluster_fig, use_container_width=True)
+        
+        st.markdown("""
+        ### 🤖 How This Works
+        This visualization uses **K-means clustering**, a machine learning algorithm that groups artists based on:
+        - **Artist Popularity (X-axis):** How many total listeners the artist has (log scale)
+        - **Genre Mainstream-ness (Y-axis):** How popular their primary genre is overall
+        
+        Each point represents an artist, and the colors show which cluster they belong to. 
+        Hover over points to see artist details!
+        """)
+        
+    else:
+        st.error("Could not load artist data for clustering analysis.") 
