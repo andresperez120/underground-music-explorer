@@ -378,6 +378,14 @@ st.write("With ❤️ from Andres")
 tab1, tab2 = st.tabs(["🎯 Get Recommendations", "🔍 Explore Artist Clusters"])
 
 with tab1:
+    # Add informational note about the algorithm
+    st.info("""
+    **🎯 How "Underground" is Defined:**
+    - Artists must have at least **1,000 total listeners** (ensures they're discoverable on streaming platforms)
+    - "Underground" = artists below the **75th percentile** of listener counts within their genre
+    - The "adventurous" slider controls the mix between familiar similar artists and these underground discoveries
+    """)
+    
     # Use columns for a cleaner layout
     col1, col2 = st.columns([2, 1])
 

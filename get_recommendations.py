@@ -130,9 +130,16 @@ def get_top_tracks_for_artists(artist_names, api_key, limit_per_artist=5):
     return artist_tracks_map
 
 # discovery logic
-def find_underground_artists(seed_artist, artist_df, percentile_threshold=0.75, max_artists=10):
+def find_underground_artists(seed_artist, artist_df, percentile_threshold=0.75, min_listeners=1000, max_artists=10):
     """
     Finds underground artists in the same genre as the seed artist.
+    
+    :param seed_artist: The artist to base recommendations on.
+    :param artist_df: The DataFrame of artist data.
+    :param percentile_threshold: Artists below this percentile are considered underground (default 0.75 = 75th percentile).
+    :param min_listeners: Minimum number of listeners an artist must have to be included (default 1000).
+    :param max_artists: Maximum number of underground artists to return.
+    :return: List of underground artist names.
     """
     print(f"   > Finding underground artists in the same genre as {seed_artist}...")
     
@@ -151,9 +158,13 @@ def find_underground_artists(seed_artist, artist_df, percentile_threshold=0.75, 
     genre_df = artist_df[artist_df['tag'] == primary_genre]
     listener_threshold = genre_df['listeners'].quantile(percentile_threshold)
     print(f"   > Dynamic listener threshold for '{primary_genre}' (at {percentile_threshold:.0%}): {listener_threshold:,.0f} listeners")
+    print(f"   > Minimum listener floor: {min_listeners:,} listeners")
     
-    # 3. Filter for artists in that genre below the threshold
-    underground_artists_df = genre_df[genre_df['listeners'] <= listener_threshold]
+    # 3. Filter for artists in that genre below the threshold BUT above the minimum floor
+    underground_artists_df = genre_df[
+        (genre_df['listeners'] <= listener_threshold) & 
+        (genre_df['listeners'] >= min_listeners)
+    ]
     
     # Exclude the seed artist themselves from the recommendations (case-insensitive)
     underground_artists_df = underground_artists_df[underground_artists_df['artist_name'].str.lower() != seed_artist.lower()]
