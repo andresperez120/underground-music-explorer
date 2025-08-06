@@ -44,8 +44,36 @@ def create_popularity_chart(recommendations, artist_df):
     # Create a DataFrame for the recommended artists
     rec_df = pd.DataFrame({'artist_name': recommended_artists})
     
-    # Merge with the main artist_df to get listener counts
-    chart_df = pd.merge(rec_df, artist_df, on='artist_name', how='left').drop_duplicates(subset=['artist_name'])
+    # Create a copy of artist_df with normalized names for better matching
+    artist_df_normalized = artist_df.copy()
+    artist_df_normalized['artist_name_norm'] = artist_df_normalized['artist_name'].str.lower().str.strip()
+    
+    # Normalize recommended artist names for matching
+    rec_df['artist_name_norm'] = rec_df['artist_name'].str.lower().str.strip()
+    
+    # Merge with the main artist_df to get listener counts using normalized names
+    chart_df = pd.merge(rec_df, artist_df_normalized, on='artist_name_norm', how='left')
+    
+    # Use the original artist names from recommendations for display
+    chart_df = chart_df.drop_duplicates(subset=['artist_name_x'])
+    chart_df = chart_df.rename(columns={'artist_name_x': 'artist_name'})
+    
+    # Filter out rows where no match was found (listeners is NaN)
+    chart_df = chart_df.dropna(subset=['listeners'])
+    
+    # Check if we have any data to plot
+    if chart_df.empty:
+        # Create a simple message plot if no data matches
+        fig, ax = plt.subplots(figsize=(10, 6))
+        fig.patch.set_facecolor('#0E1117')
+        ax.set_facecolor('#0E1117')
+        ax.text(0.5, 0.5, 'No artist data found for visualization\n(Artist names may not match database)', 
+                ha='center', va='center', transform=ax.transAxes, 
+                color='white', fontsize=12)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.axis('off')
+        return fig
     
     # Sort by listeners for a cleaner chart
     chart_df = chart_df.sort_values(by='listeners', ascending=True)
@@ -94,7 +122,8 @@ def create_recommendation_galaxy(recommendations, artist_df):
     plot_data = []
     for rec in recommendations:
         artist_name, track_name = rec.split(' - ', 1)
-        artist_info = artist_df[artist_df['artist_name'] == artist_name]
+        # Use case-insensitive matching for better results
+        artist_info = artist_df[artist_df['artist_name'].str.lower().str.strip() == artist_name.lower().strip()]
         if not artist_info.empty:
             plot_data.append({
                 'artist_track': rec,
