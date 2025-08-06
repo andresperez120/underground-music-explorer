@@ -410,8 +410,9 @@ with tab1:
     # Add informational note about the algorithm
     st.info("""
     **🎯 How "Underground" is Defined:**
-    - Artists must have at least **1,000 total listeners** (ensures they're discoverable on streaming platforms)
-    - "Underground" = artists below the **75th percentile** of listener counts within their genre
+    - **Dynamic per genre**: Underground artists fall between the **25th-75th percentile** of listener counts within their genre
+    - **Smart filtering**: Ensures every genre has discoverable underground artists (no impossible constraints)
+    - **Genre-aware**: What's "underground" in house music differs from what's underground in minimal
     - The "adventurous" slider controls the mix between familiar similar artists and these underground discoveries
     """)
     

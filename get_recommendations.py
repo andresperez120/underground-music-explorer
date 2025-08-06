@@ -130,14 +130,14 @@ def get_top_tracks_for_artists(artist_names, api_key, limit_per_artist=5):
     return artist_tracks_map
 
 # discovery logic
-def find_underground_artists(seed_artist, artist_df, percentile_threshold=0.75, min_listeners=1000, max_artists=10):
+def find_underground_artists(seed_artist, artist_df, percentile_threshold=0.75, min_percentile=0.25, max_artists=10):
     """
     Finds underground artists in the same genre as the seed artist.
     
     :param seed_artist: The artist to base recommendations on.
     :param artist_df: The DataFrame of artist data.
     :param percentile_threshold: Artists below this percentile are considered underground (default 0.75 = 75th percentile).
-    :param min_listeners: Minimum number of listeners an artist must have to be included (default 1000).
+    :param min_percentile: Minimum percentile for the floor - artists must be above this percentile within their genre (default 0.25 = 25th percentile).
     :param max_artists: Maximum number of underground artists to return.
     :return: List of underground artist names.
     """
@@ -154,16 +154,23 @@ def find_underground_artists(seed_artist, artist_df, percentile_threshold=0.75, 
     primary_genre = seed_artist_tags[0]
     print(f"   > Primary genre identified: {primary_genre}")
     
-    # 2. Calculate the dynamic 'underground' threshold for that genre
+    # 2. Calculate the dynamic thresholds for that genre
     genre_df = artist_df[artist_df['tag'] == primary_genre]
-    listener_threshold = genre_df['listeners'].quantile(percentile_threshold)
-    print(f"   > Dynamic listener threshold for '{primary_genre}' (at {percentile_threshold:.0%}): {listener_threshold:,.0f} listeners")
-    print(f"   > Minimum listener floor: {min_listeners:,} listeners")
     
-    # 3. Filter for artists in that genre below the threshold BUT above the minimum floor
+    # Upper threshold (75th percentile by default) - defines "underground"
+    upper_threshold = genre_df['listeners'].quantile(percentile_threshold)
+    
+    # Dynamic lower threshold (25th percentile by default) - ensures discoverability
+    lower_threshold = genre_df['listeners'].quantile(min_percentile)
+    
+    print(f"   > Genre '{primary_genre}' thresholds:")
+    print(f"     - Underground ceiling (at {percentile_threshold:.0%}): {upper_threshold:,.0f} listeners")
+    print(f"     - Discoverability floor (at {min_percentile:.0%}): {lower_threshold:,.0f} listeners")
+    
+    # 3. Filter for artists in that genre within the underground band
     underground_artists_df = genre_df[
-        (genre_df['listeners'] <= listener_threshold) & 
-        (genre_df['listeners'] >= min_listeners)
+        (genre_df['listeners'] <= upper_threshold) & 
+        (genre_df['listeners'] >= lower_threshold)
     ]
     
     # Exclude the seed artist themselves from the recommendations (case-insensitive)
