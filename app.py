@@ -54,24 +54,16 @@ def create_popularity_chart(recommendations, artist_df):
     # Merge with the main artist_df to get listener counts using normalized names
     chart_df = pd.merge(rec_df, artist_df_normalized, on='artist_name_norm', how='left')
     
-    # Debug: Check what columns we have after merge
-    print(f"🔍 Columns after merge: {list(chart_df.columns)}")
-    print(f"🔍 Chart_df shape: {chart_df.shape}")
-    
     # Convert listeners to numeric, replacing any invalid values with NaN
     if 'listeners' in chart_df.columns:
-        print(f"🔍 Listeners column before conversion: {chart_df['listeners'].dtype}")
-        print(f"🔍 Sample listeners values: {chart_df['listeners'].head().tolist()}")
-        
         chart_df['listeners'] = pd.to_numeric(chart_df['listeners'], errors='coerce')
-        
-        print(f"🔍 Listeners column after conversion: {chart_df['listeners'].dtype}")
-        print(f"🔍 Any NaN values? {chart_df['listeners'].isna().sum()}")
         
         # Handle duplicates by preferring exact matches over partial matches
         # Sort by listeners count (descending) to prioritize solo artists over collaborations
         try:
-            chart_df = chart_df.sort_values('listeners', ascending=False, na_last=True)
+            # Use fillna to handle NaN values instead of na_last parameter (for pandas compatibility)
+            chart_df = chart_df.fillna({'listeners': 0})  # Replace NaN with 0 for sorting
+            chart_df = chart_df.sort_values('listeners', ascending=False)
         except Exception as e:
             print(f"⚠️ Sort error: {e}")
             # Fallback: just use the data as-is without sorting
@@ -80,7 +72,7 @@ def create_popularity_chart(recommendations, artist_df):
         print("⚠️ No 'listeners' column found after merge!")
         return None, False
     
-    # For debugging: print what we found
+    # Debug matching results
     for _, row in chart_df.iterrows():
         rec_name = row['artist_name_x'] 
         db_name = row.get('artist_name_y', 'NO_MATCH')
