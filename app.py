@@ -60,11 +60,22 @@ def create_popularity_chart(recommendations, artist_df):
     
     # Convert listeners to numeric, replacing any invalid values with NaN
     if 'listeners' in chart_df.columns:
+        print(f"🔍 Listeners column before conversion: {chart_df['listeners'].dtype}")
+        print(f"🔍 Sample listeners values: {chart_df['listeners'].head().tolist()}")
+        
         chart_df['listeners'] = pd.to_numeric(chart_df['listeners'], errors='coerce')
+        
+        print(f"🔍 Listeners column after conversion: {chart_df['listeners'].dtype}")
+        print(f"🔍 Any NaN values? {chart_df['listeners'].isna().sum()}")
         
         # Handle duplicates by preferring exact matches over partial matches
         # Sort by listeners count (descending) to prioritize solo artists over collaborations
-        chart_df = chart_df.sort_values('listeners', ascending=False, na_last=True)
+        try:
+            chart_df = chart_df.sort_values('listeners', ascending=False, na_last=True)
+        except Exception as e:
+            print(f"⚠️ Sort error: {e}")
+            # Fallback: just use the data as-is without sorting
+            pass
     else:
         print("⚠️ No 'listeners' column found after merge!")
         return None, False
