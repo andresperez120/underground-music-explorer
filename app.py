@@ -284,23 +284,33 @@ def analyze_clusters(df_clustered):
     """
     insights = []
     
-    for cluster_id in sorted(df_clustered['cluster_named'].unique()):
-        cluster_data = df_clustered[df_clustered['cluster_named'] == cluster_id]
+    # Sort clusters by average listener count for consistent naming
+    cluster_means = df_clustered.groupby('cluster')['log_listeners'].mean().sort_values(ascending=False)
+    cluster_mapping = {}
+    for i, cluster_id in enumerate(cluster_means.index):
+        cluster_mapping[cluster_id] = i
+    
+    cluster_descriptions = {
+        0: "Mainstream Giants",
+        1: "Popular Acts", 
+        2: "Mid-tier Artists",
+        3: "Underground Favorites",
+        4: "Deep Underground"
+    }
+    
+    for cluster_id in sorted(df_clustered['cluster'].unique()):
+        cluster_data = df_clustered[df_clustered['cluster'] == cluster_id]
         
         avg_listeners = cluster_data['listeners'].mean()
         top_genres = cluster_data['tag'].value_counts().head(3)
         artist_count = len(cluster_data)
         
-        cluster_descriptions = {
-            0: "Mainstream Giants",
-            1: "Popular Acts", 
-            2: "Mid-tier Artists",
-            3: "Underground Favorites",
-            4: "Deep Underground"
-        }
+        # Map to descriptive name
+        named_cluster_id = cluster_mapping.get(cluster_id, cluster_id)
+        cluster_name = cluster_descriptions.get(named_cluster_id, f"Cluster {cluster_id}")
         
         insights.append({
-            'cluster': cluster_descriptions[cluster_id],
+            'cluster': cluster_name,
             'avg_listeners': f"{avg_listeners:,.0f}",
             'artist_count': artist_count,
             'top_genres': list(top_genres.index),
