@@ -222,20 +222,15 @@ def create_cluster_visualization(df_clustered):
     """
     Create an interactive cluster visualization.
     """
-    # Create cluster descriptions
-    cluster_descriptions = {
-        0: "Mainstream Giants",
-        1: "Popular Acts", 
-        2: "Mid-tier Artists",
-        3: "Underground Favorites",
-        4: "Deep Underground"
-    }
-    
     # Sort clusters by average listener count for consistent naming
     cluster_means = df_clustered.groupby('cluster')['log_listeners'].mean().sort_values(ascending=False)
     cluster_mapping = {}
     for i, cluster_id in enumerate(cluster_means.index):
         cluster_mapping[cluster_id] = i
+    
+    # Generate dynamic cluster descriptions based on number of clusters
+    n_clusters = len(cluster_means)
+    cluster_descriptions = generate_cluster_descriptions(n_clusters)
         
     df_clustered['cluster_named'] = df_clustered['cluster'].map(cluster_mapping)
     df_clustered['cluster_label'] = df_clustered['cluster_named'].map(cluster_descriptions)
@@ -290,13 +285,9 @@ def analyze_clusters(df_clustered):
     for i, cluster_id in enumerate(cluster_means.index):
         cluster_mapping[cluster_id] = i
     
-    cluster_descriptions = {
-        0: "Mainstream Giants",
-        1: "Popular Acts", 
-        2: "Mid-tier Artists",
-        3: "Underground Favorites",
-        4: "Deep Underground"
-    }
+    # Generate dynamic cluster descriptions based on number of clusters
+    n_clusters = len(cluster_means)
+    cluster_descriptions = generate_cluster_descriptions(n_clusters)
     
     for cluster_id in sorted(df_clustered['cluster'].unique()):
         cluster_data = df_clustered[df_clustered['cluster'] == cluster_id]
@@ -318,6 +309,55 @@ def analyze_clusters(df_clustered):
         })
     
     return insights
+
+
+def generate_cluster_descriptions(n_clusters):
+    """
+    Generate appropriate cluster descriptions based on the number of clusters.
+    """
+    if n_clusters == 3:
+        return {
+            0: "Mainstream Artists",
+            1: "Mid-tier Artists", 
+            2: "Underground Artists"
+        }
+    elif n_clusters == 4:
+        return {
+            0: "Mainstream Giants",
+            1: "Popular Artists",
+            2: "Emerging Artists",
+            3: "Underground Artists"
+        }
+    elif n_clusters == 5:
+        return {
+            0: "Mainstream Giants",
+            1: "Popular Acts", 
+            2: "Mid-tier Artists",
+            3: "Underground Favorites",
+            4: "Deep Underground"
+        }
+    elif n_clusters == 6:
+        return {
+            0: "Mainstream Giants",
+            1: "Popular Acts",
+            2: "Well-known Artists",
+            3: "Mid-tier Artists",
+            4: "Underground Favorites",
+            5: "Deep Underground"
+        }
+    elif n_clusters == 7:
+        return {
+            0: "Mainstream Giants",
+            1: "Popular Acts",
+            2: "Well-known Artists",
+            3: "Mid-tier Artists",
+            4: "Emerging Artists",
+            5: "Underground Favorites",
+            6: "Deep Underground"
+        }
+    else:
+        # Fallback for any other number
+        return {i: f"Cluster {i+1}" for i in range(n_clusters)}
 
 
 # Data loading
