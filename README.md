@@ -3,12 +3,13 @@
 # Underground Music Discovery Engine
 
 ## 🎯 Project Goal
-To create a smart recommendation engine that helps users discover **underground electronic music**. The system provides a curated playlist that balances two key elements:
+To create an intelligent music discovery platform that helps users explore **underground electronic music** through multiple approaches:
 
-1.  **Relevance**: Tracks from artists similar to what the user already likes, providing a solid foundation of familiarity.
-2.  **Discovery**: Hidden gems from unpopular ("underground") artists within the same genres, ensuring a fresh and exciting listening experience.
+1.  **Smart Recommendations**: A hybrid engine that balances familiar tracks (from similar artists) with hidden gems from underground artists in the same genres
+2.  **Data-Driven Discovery**: Dynamic, genre-specific thresholds that intelligently define "underground" based on each genre's unique popularity distribution
+3.  **Machine Learning Insights**: K-means clustering to reveal patterns in artist popularity and genre relationships, helping users understand the electronic music landscape
 
-This hybrid approach delivers recommendations that are both perfectly tailored and full of surprises.
+This multi-faceted approach delivers personalized recommendations while providing educational insights into how electronic music artists cluster and what makes them "underground."
 
 ---
 
@@ -20,9 +21,10 @@ This hybrid approach delivers recommendations that are both perfectly tailored a
 ## ⚙️ Tech Stack & References
 - **Python** (core logic)
 - **Streamlit** (web app framework)
-- **Pandas** (data manipulation)
-- **Requests** (API calls)
-- **Matplotlib, Seaborn, Plotly** (visualizations)
+- **Pandas** (data manipulation and analysis)
+- **Requests** (Last.fm API calls)
+- **Scikit-learn** (K-means clustering and data preprocessing)
+- **Matplotlib, Seaborn, Plotly** (static and interactive visualizations)
 - **Last.fm API** ([docs](https://www.last.fm/api))
 
 ---
@@ -69,12 +71,23 @@ Exploratory Data Analysis (EDA) was performed to understand the landscape of ele
 
 ---
 
-## 📦 Data Collection from Last.fm
+## 📦 Data Collection & Smart Thresholds
+
+### Data Collection from Last.fm
 - **Artist Discovery:** Used Last.fm's `tag.getTopArtists` endpoint to fetch thousands of artists for each genre tag (e.g., 'techno', 'house').
 - **Popularity Metric:** Queried each artist's total listener count using the `artist.getInfo` endpoint.
 - **Genre Tagging:** Collected the top genre tags for each artist.
-- **Underground Definition:** Artists with listener counts below the 75th percentile for their genre are considered "underground" in this project.
 - **Data Storage:** All artist/tag/listener data is stored in `lastfm_artists_with_listeners.csv`.
+
+### Dynamic Underground Definition
+Rather than using a fixed threshold, the system now employs **genre-specific, dynamic thresholds**:
+
+- **25th-75th Percentile Band**: "Underground" artists fall between the 25th and 75th percentiles of listener counts within their specific genre
+- **Genre-Aware Intelligence**: What's "underground" in house music (broader appeal) differs significantly from minimal techno (niche appeal)
+- **Smart Filtering**: Ensures every genre has a viable pool of discoverable underground artists
+- **No Impossible Constraints**: Eliminates scenarios where the minimum threshold exceeds the genre's 75th percentile
+
+**Example**: In house music, underground artists might have 2,000-12,000 listeners, while in minimal, they might have 200-800 listeners.
 
 ---
 
@@ -90,13 +103,35 @@ This script is responsible for building the core artist database that powers the
 ### How do we generate recommendations? (`get_recommendations.py`)
 This script is the heart of the recommendation engine:
 1. **Takes your favorite artist:** You enter an artist you like (the "seed").
-2. **Finds similar artists:** It uses the Last.fm API to find artists similar to your seed artist, and gets their top tracks (these are likely to be familiar to you).
-3. **Finds underground artists:** It also looks up other artists in the same genre(s) from the CSV database, but only those with low listener counts (the "underground" ones), and gets their top tracks (these are likely to be new discoveries).
-4. **Mixes the results:** It combines tracks from both groups, removes any duplicates, and creates a playlist that balances familiar favorites with hidden gems.
+2. **Finds similar artists:** Uses the Last.fm API to find artists similar to your seed artist, and gets their top tracks (familiar discoveries).
+3. **Identifies genres dynamically:** Determines the seed artist's genre(s) from the database, including both solo entries and collaborations.
+4. **Calculates smart thresholds:** For each genre, computes the 25th-75th percentile listener range to define "underground but discoverable."
+5. **Finds underground artists:** Searches the database for artists within the underground range for those genres.
+6. **Mixes intelligently:** Combines tracks from both streams using the "adventurous" slider to control the familiar/discovery balance.
+
+### Machine Learning Artist Clustering
+The app features an **"Explore Artist Clusters"** tab that uses unsupervised machine learning to reveal patterns in the electronic music landscape:
+
+**Features Used for Clustering:**
+- **Artist Popularity (Log-Transformed)**: Raw listener counts are log-transformed to handle the extreme skewness in music popularity data
+- **Genre Mainstream-ness**: A calculated metric representing how "mainstream" vs "niche" each genre is based on average listener counts
+
+**Why Log Transformation?**
+- **Extreme skewness**: Most artists have <10k listeners while top artists have millions
+- **Better clustering**: Prevents mega-popular artists from dominating all cluster assignments
+- **Meaningful patterns**: Captures that the difference between 1k→10k listeners is as significant as 100k→1M listeners
+- **Algorithm efficiency**: Creates balanced clusters based on popularity tiers rather than raw numbers
+
+**Interactive Features:**
+- **Adjustable cluster count**: Users can select 3-7 clusters to see different levels of granularity
+- **Dynamic cluster descriptions**: Automatically generates meaningful names like "Mainstream Giants," "Underground Favorites," etc.
+- **Cluster insights**: Shows average popularity, top genres, and example artists for each cluster
+- **Interactive visualization**: Plotly-powered scatter plot with hover details and genre color-coding
 
 **In summary:**
-- `get_artists_by_tag.py` builds the big list of artists and their popularity.
-- `get_recommendations.py` uses that list (plus real-time API data) to create a custom playlist for you, blending what you know with what you might love next.
+- `get_artists_by_tag.py` builds the comprehensive artist database
+- `get_recommendations.py` uses dynamic thresholds and smart mixing for personalized playlists
+- **Machine learning clustering** reveals the hidden structure of electronic music popularity and genre relationships
 
 ---
 
@@ -112,16 +147,31 @@ This script is the heart of the recommendation engine:
 
 ## 🚦 Project Phases (Actual Workflow)
 1. **Data Collection**
-    - Gathered artist/tag/listener data from Last.fm using `get_artist_by_tag.py`.
+    - Gathered artist/tag/listener data from Last.fm using `get_artists_by_tag.py`
+    - Built comprehensive database of ~50k electronic music artists
   
-2. **EDA**
-    - Understand the data we are working with and what it  means for an artist or track to be considered "underground".
-3. **Recommendation Engine**
-    - Developed hybrid logic to combine "relevance" (similar artists) and "discovery" (underground artists) paths.
-4. **Web App Development**
-    - Built a Streamlit app for user interaction, playlist generation, and data visualization.
-5. **Deployment**
-    - Deployed the app to Streamlit Community Cloud for public access.
+2. **Exploratory Data Analysis (EDA)**
+    - Analyzed the extreme skewness in music popularity across genres
+    - Discovered genre-specific popularity patterns that informed dynamic threshold design
+    
+3. **Recommendation Engine Development**
+    - Developed hybrid logic combining "relevance" (similar artists) and "discovery" (underground artists)
+    - Implemented dynamic, genre-aware thresholds to replace fixed "underground" definitions
+    - Enhanced collaboration matching for artists primarily known through features/remixes
+    
+4. **Machine Learning Integration**
+    - Added K-means clustering with log-transformed features to reveal artist groupings
+    - Built interactive cluster visualization and analysis tools
+    - Implemented educational explanations of data science concepts
+    
+5. **Web App Development**
+    - Built intuitive Streamlit interface with dual-tab navigation
+    - Created comprehensive visualizations (bar charts, galaxy plots, cluster maps)
+    - Added user-friendly explanations and transparent algorithm descriptions
+    
+6. **Deployment & Polish**
+    - Deployed to Streamlit Community Cloud with proper secrets management
+    - Enhanced user experience with helpful notes and data transparency features
 
 ---
 
