@@ -54,12 +54,20 @@ def create_popularity_chart(recommendations, artist_df):
     # Merge with the main artist_df to get listener counts using normalized names
     chart_df = pd.merge(rec_df, artist_df_normalized, on='artist_name_norm', how='left')
     
-    # Convert listeners to numeric, replacing any invalid values with NaN
-    chart_df['listeners'] = pd.to_numeric(chart_df['listeners'], errors='coerce')
+    # Debug: Check what columns we have after merge
+    print(f"🔍 Columns after merge: {list(chart_df.columns)}")
+    print(f"🔍 Chart_df shape: {chart_df.shape}")
     
-    # Handle duplicates by preferring exact matches over partial matches
-    # Sort by listeners count (descending) to prioritize solo artists over collaborations
-    chart_df = chart_df.sort_values('listeners', ascending=False, na_last=True)
+    # Convert listeners to numeric, replacing any invalid values with NaN
+    if 'listeners' in chart_df.columns:
+        chart_df['listeners'] = pd.to_numeric(chart_df['listeners'], errors='coerce')
+        
+        # Handle duplicates by preferring exact matches over partial matches
+        # Sort by listeners count (descending) to prioritize solo artists over collaborations
+        chart_df = chart_df.sort_values('listeners', ascending=False, na_last=True)
+    else:
+        print("⚠️ No 'listeners' column found after merge!")
+        return None, False
     
     # For debugging: print what we found
     for _, row in chart_df.iterrows():
@@ -531,12 +539,16 @@ with tab1:
 
                 with col1_chart:
                     st.subheader("Popularity Spectrum:")
-                    fig, has_missing = create_popularity_chart(recommendations, artist_df)
-                    st.pyplot(fig)
-                    
-                    # Show explanation if there are unknown artists
-                    if has_missing:
-                        st.caption("💡 **Note:** Artists labeled 'Unknown' are not in our database. These are typically mainstream artists discovered through Last.fm's similar artist recommendations.")
+                    chart_result = create_popularity_chart(recommendations, artist_df)
+                    if chart_result and chart_result[0] is not None:
+                        fig, has_missing = chart_result
+                        st.pyplot(fig)
+                        
+                        # Show explanation if there are unknown artists
+                        if has_missing:
+                            st.caption("💡 **Note:** Artists labeled 'Unknown' are not in our database. These are typically mainstream artists discovered through Last.fm's similar artist recommendations.")
+                    else:
+                        st.error("Could not create popularity chart due to data processing error.")
                 
                 with col2_galaxy:
                     st.subheader("Recommendation Galaxy")
